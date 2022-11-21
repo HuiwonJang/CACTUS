@@ -4,8 +4,6 @@ import torch.nn.functional as F
 import torchvision
 import ignite.distributed as idist
 
-import resnet12
-
 
 def get_mlp(*layers):
     modules = []

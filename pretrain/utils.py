@@ -1,6 +1,7 @@
 import os
 import math
 import copy
+import faiss
 
 from sklearn.neighbors import KNeighborsClassifier
 
@@ -50,29 +51,48 @@ def save_checkpoint(engine, args, **kwargs):
 def collect_features(model, loader):
     model.eval()
     device = idist.device()
-    X, Y = [], []
-    for batch in loader:
+    X, Y, Z = [], [], []
+    for (i, batch) in enumerate(loader):
         x, y = convert_tensor(batch, device=device)
-        x = model(x, mode='feature')
+        z = model(x, mode='feature')
         X.append(x.detach())
         Y.append(y.detach())
+        Z.append(z.detach())
+        print(f'{i+1:4d} / {len(loader):4d}', end='\r')
     X = torch.cat(X).detach()
     Y = torch.cat(Y).detach()
-    return X, Y
+    Z = torch.cat(Z).detach()
+    return X, Y, Z
 
 
 @torch.no_grad()
-def save_features(model, loader, datadir, model_name, backbone_name, n_cluster):
+def save_features(model, loader, datadir, model_name, backbone_name, n_cluster, n_partitions=100):
     save_root = os.path.join(datadir, f'{model_name}_{backbone_name}_{n_cluster}')
-    #TODO: make save_root if not exist. If exist -> raise Error
-    #train mode: save f(x), clst_id
+    if idist.get_rank() == 0:
+        os.makedirs(save_root)
 
-    #val, test mode: save f(x), y from collect_features
+    #train mode: save x, clst_ids (n_partition x N)
+    X, _, Z = collect_features(model, loader['train'])
+    X = X.cpu().numpy()
+    Z = Z.cpu().numpy()
+
+    Y = []
+    for partition in range(n_partitions):
+        kmeans = faiss.Kmeans(d=Z.shape[1], k=n_cluster, niter=10)
+        kmeans.train(Z)
+        _, assignments = kmeans.index.search(Z, 1)
+        Y.append(np.array(assignments.reshape(-1)))
+        print(f'obtaining partition: {partition+1:4d} / {n_partitions:4d} done', end='\r')
+    Y = np.stack(Y) #100xN
+    np.save(os.path.join(save_root, 'train.npy'), *(X, Y))
+
+    #val, test mode: save x, y
     for mode in ['val', 'test']:
-        X, Y = collect_features(model, loader[mode])
-        X = X.numpy()
-        Y = Y.numpy()
-        np.save(os.path.join(save_root, f'{mode}.npy'), (X, Y))
+        X, Y, _ = collect_features(model, loader[mode])
+        X = X.cpu().numpy()
+        Y = Y.cpu().numpy()
+
+        np.save(os.path.join(save_root, f'{mode}.npy'), *(X, Y))
 
 
 @torch.no_grad()
