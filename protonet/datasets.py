@@ -5,6 +5,8 @@ from collections import defaultdict
 
 from PIL import Image
 
+import numpy as np
+
 import torch
 import torchvision.datasets as D
 import torchvision.transforms as T
@@ -42,35 +44,13 @@ class FewShotTaskSampler(torch.utils.data.BatchSampler):
             yield batch_indices
 
 
-'''
-dataset Example.
-TODO: open file of (x_1, y_pseudo1), ..., (x_N, y_pseudoN)
+class RepresentationDataset(torch.utils.data.TensorDataset):
+    def __init__(self, root, split):
+        #tensors: (xs tensor: NxD, ys tensor: Nx1)
+        #ex: './data/miniimagenet/moco' + '/train.npy'
+        tensors = np.load(os.path.join(root, f'{split}.npy'))
 
-class JSONImageDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, root, split, transform, depth=0):
-        super().__init__()
-
-        with open(f'splits/{dataset}/{split}.json', 'r') as f:
-            dir_list = json.load(f)
-        class_to_idx = {category: i for i, category in enumerate(dir_list['label_names'])}
-
-        self.samples = []
-
-        for path in dir_list['image_names']:
-            file_path = os.path.join(root, path)
-            category = path.split('/')[depth]
-            self.samples.append((file_path, class_to_idx[category]))
-
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, index):
-        filename, y = self.samples[index]
-        img = Image.open(filename, mode='r').convert("RGB")
-        return self.transform(img), y
-'''
+        super().__init__(tensors)
 
 
 def get_augmentation(dataset):
