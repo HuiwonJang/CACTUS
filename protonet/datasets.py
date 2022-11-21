@@ -18,8 +18,6 @@ class FewShotTaskSampler(torch.utils.data.BatchSampler):
         self.Q = Q
         self.num_tasks = num_tasks
 
-        #if isinstance(dataset, (D.CIFAR10, D.CIFAR100)):
-        #    labels = dataset.targets
         if isinstance(dataset, D.ImageFolder):
             labels = [y for _, y in dataset.samples]
         else:

@@ -17,7 +17,6 @@ def get_backbone(backbone, input_shape):
         layers.append(nn.Flatten())
         net = nn.Sequential(*layers)
         net.out_dim = 1600
-
     else:
         raise NotImplementedError
 
