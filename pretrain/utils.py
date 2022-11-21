@@ -62,6 +62,20 @@ def collect_features(model, loader):
 
 
 @torch.no_grad()
+def save_features(model, loader, datadir, model_name, backbone_name, n_cluster):
+    save_root = os.path.join(datadir, f'{model_name}_{backbone_name}_{n_cluster}')
+    #TODO: make save_root if not exist. If exist -> raise Error
+    #train mode: save f(x), clst_id
+
+    #val, test mode: save f(x), y from collect_features
+    for mode in ['val', 'test']:
+        X, Y = collect_features(model, loader[mode])
+        X = X.numpy()
+        Y = Y.numpy()
+        np.save(os.path.join(save_root, f'{mode}.npy'), (X, Y))
+
+
+@torch.no_grad()
 def evaluate_fewshot(model, loader, metric):
     model.eval()
     device = idist.device()

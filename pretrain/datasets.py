@@ -102,10 +102,13 @@ def get_augmentation(dataset, method='none'):
 
 def get_dataset(dataset, datadir, augmentations=['strong', 'strong']):
     if dataset == 'miniimagenet':
-        augs = [get_augmentation(dataset, aug) for aug in augmentations]
-        train = D.ImageFolder(os.path.join(datadir, 'train'), transform=MultipleTransform(augs))
-        val   = D.ImageFolder(os.path.join(datadir, 'val'),   transform=get_augmentation(dataset, 'none'))
-        test  = D.ImageFolder(os.path.join(datadir, 'test'),  transform=get_augmentation(dataset, 'none'))
+        if len(augmentations) > 1:
+            augs = [get_augmentation(dataset, aug) for aug in augmentations]
+            train = D.ImageFolder(os.path.join(datadir, 'train'), transform=MultipleTransform(augs))
+        else:
+            train = D.ImageFolder(os.path.join(datadir, 'val'),   transform=get_augmentation(dataset, 'none'))
+        val  = D.ImageFolder(os.path.join(datadir, 'val'),  transform=get_augmentation(dataset, 'none'))
+        test = D.ImageFolder(os.path.join(datadir, 'test'), transform=get_augmentation(dataset, 'none'))
         num_classes = (64, 16, 20)
         input_shape = (3, 84, 84)
     else:

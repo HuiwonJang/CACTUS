@@ -15,8 +15,7 @@ import datasets
 def main(local_rank, args):
     device = idist.device()
 
-    dataset = args.dataset
-    dataset = datasets.get_dataset(dataset, args.datadir)
+    dataset = datasets.get_dataset(args.dataset, args.datadir, augmentations=['none'])
     loader  = datasets.get_loader(args, dataset)
 
     model = models.get_model(args, input_shape=dataset['input_shape'])
@@ -39,6 +38,8 @@ def main(local_rank, args):
                 f'[{args.N} way {args.K} shot] [FewShot {args.eval_fewshot_metric}]'
                 f'[{val[0]:.4f}±{val[1]:.4f}] | {test[0]:.4f}±{test[1]:.4f}]')
 
+    utils.save_features(model, loader, args.datadir, args.model, args.backbone, args.n_clusters)
+
 
 if __name__ == "__main__":
     cudnn.benchmark = True
@@ -52,6 +53,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--model', type=str, default='moco')
     parser.add_argument('--backbone', type=str, default='conv5')
+    parser.add_argument('--n-clusters', type=int, default=512)
 
     parser.add_argument('--prediction', action='store_true')
     parser.add_argument('--temperature', type=float, default=0.2)
