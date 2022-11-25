@@ -161,7 +161,7 @@ class BYOL(BaseModel):
         self.queue_ptr[0] = (ptr + batch_size) % self.queue.shape[0]
 
     def compute_loss(self, batch):
-        (x1, x2), _ = batch
+        (x1, x2), _ = batch[0]
         z1 = F.normalize(self.predictor(self.projector(self.backbone(x1))))
         with torch.no_grad():
             z2 = F.normalize(self.ema_projector(self.ema_backbone(x2))).detach()
@@ -180,7 +180,7 @@ class SimCLR(BaseModel):
         self.temperature = temperature
 
     def compute_loss(self, batch):
-        (x1, x2), _ = batch
+        (x1, x2), _ = batch[0]
         n = x1.shape[0]
         z1 = F.normalize(self.projector(self.backbone(x1)))
         z2 = F.normalize(self.projector(self.backbone(x2)))
@@ -206,7 +206,7 @@ class SwAV(BaseModel):
         self.sinkhorn_iter = sinkhorn_iter
 
     def compute_loss(self, batch):
-        (x1, x2), _ = batch
+        (x1, x2), _ = batch[0]
         with torch.no_grad():
             w = F.normalize(self.prototypes.weight.data.clone())
             self.prototypes.weight.copy_(w)
@@ -247,7 +247,7 @@ class MoCo(BaseModel):
         self.queue_ptr[0] = (ptr + batch_size) % self.queue.shape[0]
 
     def compute_loss(self, batch):
-        (x1, x2), _ = batch
+        (x1, x2), _ = batch[0]
         z1 = F.normalize(self.predictor(self.projector(self.backbone(x1))))
         with torch.no_grad():
             z2 = F.normalize(self.ema_projector(self.ema_backbone(x2))).detach()

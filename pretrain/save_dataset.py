@@ -4,7 +4,6 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 
-import torchvision.datasets as D
 import torchvision.transforms as T
 
 import ignite.distributed as idist
@@ -22,9 +21,9 @@ def get_dataset(datadir):
     transform = T.Compose([T.ToTensor(),
                            T.Normalize(mean=mean, std=std)])
 
-    train = D.ImageFolder(os.path.join(datadir, 'train'), transform=transform)
-    val   = D.ImageFolder(os.path.join(datadir, 'val'),   transform=transform)
-    test  = D.ImageFolder(os.path.join(datadir, 'test'),  transform=transform)
+    train = datasets.MiniImageNet(os.path.join(datadir, 'train'), transform=transform)
+    val   = datasets.MiniImageNet(os.path.join(datadir, 'val'),   transform=transform)
+    test  = datasets.MiniImageNet(os.path.join(datadir, 'test'),  transform=transform)
     num_classes = (64, 16, 20)
     input_shape = (3, 84, 84)
 

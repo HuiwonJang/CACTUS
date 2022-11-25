@@ -18,27 +18,6 @@ import ignite.distributed as idist
 from torchvision.datasets.utils import list_files
 
 
-
-class RandomNoise(object):
-    def __init__(self, ratio):
-        self.ratio = ratio
-
-    def __call__(self, x):
-        noise = np.random.choice([-1, 0, 1], x.shape[0], p=[self.ratio/2, 1-self.ratio, self.ratio/2])
-        x = np.abs(x-noise)
-        return x
-
-
-class GaussianBlur(object):
-    def __init__(self, sigma=[.1, 2.]):
-        self.sigma = sigma
-
-    def __call__(self, x):
-        sigma = random.uniform(self.sigma[0], self.sigma[1])
-        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
-        return x
-
-
 class MultipleTransform(nn.Module):
     def __init__(self, transforms):
         super().__init__()
@@ -76,6 +55,14 @@ class FewShotTaskSampler(torch.utils.data.BatchSampler):
             yield batch_indices
 
 
+class MiniImageNet(D.ImageFolder):
+    def __init__(self, root, transform):
+        super().__init__(root, transform)
+
+    def __getitem__(self, idx):
+        return super().__getitem__(idx), self.samples[idx][0]
+
+
 def get_augmentation(dataset, method='none'):
     interpolation=T.InterpolationMode.BICUBIC
     if dataset == 'miniimagenet':
@@ -103,9 +90,9 @@ def get_augmentation(dataset, method='none'):
 def get_dataset(dataset, datadir, augmentations=['strong', 'strong']):
     if dataset == 'miniimagenet':
         augs = [get_augmentation(dataset, aug) for aug in augmentations]
-        train = D.ImageFolder(os.path.join(datadir, 'train'), transform=MultipleTransform(augs))
-        val   = D.ImageFolder(os.path.join(datadir, 'val'),  transform=get_augmentation(dataset, 'none'))
-        test  = D.ImageFolder(os.path.join(datadir, 'test'), transform=get_augmentation(dataset, 'none'))
+        train = MiniImageNet(os.path.join(datadir, 'train'), transform=MultipleTransform(augs))
+        val   = MiniImageNet(os.path.join(datadir, 'val'),  transform=get_augmentation(dataset, 'none'))
+        test  = MiniImageNet(os.path.join(datadir, 'test'), transform=get_augmentation(dataset, 'none'))
         num_classes = (64, 16, 20)
         input_shape = (3, 84, 84)
     else:

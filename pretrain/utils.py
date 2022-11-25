@@ -2,6 +2,7 @@ import os
 import math
 import copy
 import faiss
+import pickle
 
 from sklearn.neighbors import KNeighborsClassifier
 
@@ -51,18 +52,19 @@ def save_checkpoint(engine, args, **kwargs):
 def collect_features(model, loader):
     model.eval()
     device = idist.device()
-    X, Y, Z = [], [], []
+    Y, Z, paths = [], [], []
     for (i, batch) in enumerate(loader):
-        x, y = convert_tensor(batch, device=device)
+        x, y = convert_tensor(batch[0], device=device)
+        path = batch[1]
+        
         z = model(x, mode='feature')
-        X.append(x.detach())
         Y.append(y.detach())
         Z.append(z.detach())
+        paths.append(path)
         print(f'{i+1:4d} / {len(loader):4d}', end='\r')
-    X = torch.cat(X).detach()
     Y = torch.cat(Y).detach()
     Z = torch.cat(Z).detach()
-    return X, Y, Z
+    return Y, Z, paths
 
 
 @torch.no_grad()
@@ -72,8 +74,7 @@ def save_features(model, loader, datadir, model_name, backbone_name, n_cluster, 
         os.makedirs(save_root)
 
     #train mode: save x, clst_ids (n_partition x N)
-    X, _, Z = collect_features(model, loader['train'])
-    X = X.cpu().numpy()
+    _, Z, paths = collect_features(model, loader['train'])
     Z = Z.cpu().numpy()
 
     Y = []
@@ -84,15 +85,21 @@ def save_features(model, loader, datadir, model_name, backbone_name, n_cluster, 
         Y.append(np.array(assignments.reshape(-1)))
         print(f'obtaining partition: {partition+1:4d} / {n_partitions:4d} done', end='\r')
     Y = np.stack(Y) #100xN
-    np.save(os.path.join(save_root, 'train.npy'), *(X, Y))
+    
+    save_dict = {'paths': paths,
+                 'Y': Y}
+    with open(os.path.join(save_root, 'train.pkl'), 'wb') as f:
+        pickle.dump(save_dict, f)
 
     #val, test mode: save x, y
     for mode in ['val', 'test']:
-        X, Y, _ = collect_features(model, loader[mode])
-        X = X.cpu().numpy()
+        Y, _, paths = collect_features(model, loader[mode])
         Y = Y.cpu().numpy()
 
-        np.save(os.path.join(save_root, f'{mode}.npy'), *(X, Y))
+        save_dict = {'paths': paths,
+                     'Y': Y}
+        with open(os.path.join(save_root, f'{mode}.pkl'), 'wb') as f:
+            pickle.dump(save_dict, f)
 
 
 @torch.no_grad()
@@ -105,7 +112,7 @@ def evaluate_fewshot(model, loader, metric):
     Q = loader.batch_sampler.Q
     accuracies = []
     for cnt, task in enumerate(loader):
-        x, _ = convert_tensor(task, device=device)
+        x, _ = convert_tensor(task[0], device=device)
         input_shape = x.shape[1:]
         x = x.view(N, K+Q, *input_shape)
 
