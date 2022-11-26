@@ -55,13 +55,14 @@ def collect_features(model, loader):
     Y, Z, paths = [], [], []
     for (i, batch) in enumerate(loader):
         x, y = convert_tensor(batch[0], device=device)
-        path = batch[1]
-        
+        full_path = batch[1]
+        path = [path.split('/')[-2:] for path in full_path] #folder & file_name
         z = model(x, mode='feature')
         Y.append(y.detach())
         Z.append(z.detach())
         paths.append(path)
         print(f'{i+1:4d} / {len(loader):4d}', end='\r')
+    paths = sum(paths, [])
     Y = torch.cat(Y).detach()
     Z = torch.cat(Z).detach()
     return Y, Z, paths
@@ -85,7 +86,7 @@ def save_features(model, loader, datadir, model_name, backbone_name, n_cluster, 
         Y.append(np.array(assignments.reshape(-1)))
         print(f'obtaining partition: {partition+1:4d} / {n_partitions:4d} done', end='\r')
     Y = np.stack(Y) #100xN
-    
+
     save_dict = {'paths': paths,
                  'Y': Y}
     with open(os.path.join(save_root, 'train.pkl'), 'wb') as f:
