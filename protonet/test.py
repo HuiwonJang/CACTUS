@@ -15,11 +15,7 @@ import datasets
 def main(local_rank, args):
     device = idist.device()
 
-    if not args.pretrained_dataset == args.dataset:
-        dataset = [args.pretrained_dataset, args.dataset]
-    else:
-        dataset = args.dataset
-    dataset = datasets.get_dataset(dataset, args.datadir)
+    dataset = datasets.get_dataset(args.dataset, args.datadir, args.pkldir)
     loader  = datasets.get_loader(args, dataset)
 
     model = models.get_model(args, input_shape=dataset['input_shape'])
@@ -42,7 +38,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str, required=True)
-    parser.add_argument('--pretrained-dataset', type=str, default='miniimagenet')
+    parser.add_argument('--pkldir', type=str, required=True)
     parser.add_argument('--dataset', type=str, default='miniimagenet')
     parser.add_argument('--datadir', type=str, default='/data/miniimagenet')
     parser.add_argument('--batch-size', type=int, default=256)

@@ -1,5 +1,5 @@
 import os
-import json
+import pickle
 import random
 from collections import defaultdict
 
@@ -44,13 +44,69 @@ class FewShotTaskSampler(torch.utils.data.BatchSampler):
             yield batch_indices
 
 
-class RepresentationDataset(torch.utils.data.TensorDataset):
-    def __init__(self, root, split):
-        #tensors: (xs tensor: NxD, ys tensor: Nx1)
-        #ex: './data/miniimagenet/moco' + '/train.npy'
-        tensors = np.load(os.path.join(root, f'{split}.npy'))
+class PartitionFewShotTaskSampler(torch.utils.data.BatchSampler):
+    def __init__(self, dataset, N, K, Q, num_tasks):
+        self.N = N
+        self.K = K
+        self.Q = Q
+        self.num_tasks = num_tasks
+        self.partition = dataset.partition
 
-        super().__init__(tensors)
+        if isinstance(dataset, PartitionDataset):
+            labels = dataset.indices
+        else:
+            raise NotImplementedError
+
+        self.indices = []
+        for ys in labels:
+            indices = defaultdict(list)
+            for j, y in enumerate(ys):
+                indices[y].append(j)
+            self.indices.append(indices)
+
+    def __len__(self):
+        return self.num_tasks
+
+    def __iter__(self):
+        for _ in range(self.num_tasks):
+            partition = np.random.randint(0, self.partition)
+            indices = self.indices[partition]
+            batch_indices = []
+            labels = random.sample(list(indices.keys()), self.N)
+            for y in labels:
+                if len(indices[y]) >= self.K+self.Q:
+                    batch_indices.extend(random.sample(indices[y], self.K+self.Q))
+                else:
+                    batch_indices.extend(random.choices(indices[y], k=self.K+self.Q))
+            batch_indices = [idx+(self.partition*1000)*partition for idx in batch_indices]
+            yield batch_indices
+
+
+class PartitionDataset(torch.utils.data.Dataset):
+    def __init__(self, data_root, pkl_dir, transform):
+        # train: paths: Nx2 (folder, file_name) || Y: 100xN (indices)
+        with open(pkl_dir, 'rb') as f:
+            data_list = pickle.load(f)
+        data_paths = data_list['paths']
+
+        self.transform = transform
+        self.indices = data_list['Y']
+        self.partition = self.indices.shape[0]
+
+        self.data = []
+        for paths in data_paths:
+            self.data.append(os.path.join(data_root, *paths))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        partition = index//(self.partition*1000)
+        idx = index%(self.partition*1000)
+        filename, y = self.data[idx], self.indices[partition, idx]
+        img = Image.open(filename, mode='r').convert("RGB")
+
+        return self.transform(img), y
 
 
 def get_augmentation(dataset):
@@ -63,10 +119,11 @@ def get_augmentation(dataset):
         raise NotImplementedError
 
 
-def get_dataset(dataset, datadir):
+def get_dataset(dataset, datadir, pkldir):
     transform = get_augmentation(dataset)
     if dataset == 'miniimagenet':
-        train = D.ImageFolder(os.path.join(datadir, 'train'), transform=transform)
+        train = PartitionDataset(os.path.join(datadir, 'train'), os.path.join(pkldir, 'train.pkl'), transform=transform)
+        #train = D.ImageFolder(os.path.join(datadir, 'train'), transform=transform)
         val   = D.ImageFolder(os.path.join(datadir, 'val'),   transform=transform)
         test  = D.ImageFolder(os.path.join(datadir, 'test'),  transform=transform)
         num_classes = (64, 16, 20)
@@ -83,15 +140,15 @@ def get_dataset(dataset, datadir):
 
 def get_loader(args, dataset, splits=['train', 'val', 'test']):
     loader = {}
-    train_batch_sampler = FewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,
-                                             num_tasks=args.num_tasks // idist.get_world_size())
+    train_batch_sampler = PartitionFewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,#PartitionFewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,
+                                                      num_tasks=args.num_tasks // idist.get_world_size())
     loader['train'] = torch.utils.data.DataLoader(dataset['train'],
                                                   batch_sampler=train_batch_sampler,
                                                   num_workers=args.num_workers,
                                                   pin_memory=True)
 
     for split in ['val', 'test']:
-        batch_sampler = FewShotTaskSampler(dataset[split], N=5, K=args.K, Q=args.Q,
+        batch_sampler = FewShotTaskSampler(dataset[split], N=5, K=args.K, Q=15,
                                            num_tasks=args.num_tasks // idist.get_world_size())
         loader[split] = torch.utils.data.DataLoader(dataset[split],
                                                     batch_sampler=batch_sampler,

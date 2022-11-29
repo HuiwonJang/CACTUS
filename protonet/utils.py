@@ -38,14 +38,6 @@ def save_checkpoint(engine, args, **kwargs):
     torch.save(state, os.path.join(args.logdir, f'last.pth'))
 
 
-@idist.one_rank_only()
-def save_best_checkpoint(engine, args, **kwargs):
-    state = { k: copy.deepcopy(v.state_dict()) for k, v in kwargs.items() }
-    state['engine'] = engine.state_dict()
-    # torch.save(state, os.path.join(args.logdir, f'ckpt-{engine.state.epoch}.pth'))
-    torch.save(state, os.path.join(args.logdir, f'best.pth'))
-
-
 @torch.no_grad()
 def evaluate_fewshot(model, loader):
     model.eval()

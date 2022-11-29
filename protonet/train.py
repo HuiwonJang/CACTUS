@@ -17,7 +17,7 @@ import datasets
 def main(local_rank, args):
     device = idist.device()
     logger, tb_logger = utils.get_logger(args)
-    dataset = datasets.get_dataset(args.dataset, args.datadir)
+    dataset = datasets.get_dataset(args.dataset, args.datadir, args.pkldir)
     loader  = datasets.get_loader(args, dataset)
 
     model = models.get_model(args, input_shape=dataset['input_shape'])
@@ -49,8 +49,6 @@ def main(local_rank, args):
         return outputs
 
     trainer = Engine(training_step)
-    trainer.state = State(max_val_acc=0)
-
     if logger is not None:
         trainer.logger = logger
         trainer.tb_logger = tb_logger
@@ -70,10 +68,6 @@ def main(local_rank, args):
             engine.tb_logger.add_scalar(f'fewshot/test', test[0], iter)
         idist.barrier()
 
-        if val[0] > engine.state.max_val_acc:
-            utils.save_best_checkpoint(engine, args, model=model, optimizer=optimizer, scheduler=scheduler)
-            engine.state.max_val_acc = val[0]
-
     trainer.add_event_handler(Events.ITERATION_COMPLETED(every=args.save_freq), utils.save_checkpoint, args,
                               model=model, optimizer=optimizer, scheduler=scheduler)
 
@@ -87,6 +81,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--logdir', type=str, required=True)
+    parser.add_argument('--pkldir', type=str, required=True)
     parser.add_argument('--dataset', type=str, default='miniimagenet')
     parser.add_argument('--datadir', type=str, default='/data/miniimagenet')
     parser.add_argument('--num-epochs', type=int, default=60)
