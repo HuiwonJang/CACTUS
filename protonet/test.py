@@ -15,7 +15,7 @@ import datasets
 def main(local_rank, args):
     device = idist.device()
 
-    dataset = datasets.get_dataset(args.dataset, args.datadir, args.pkldir)
+    dataset = datasets.get_dataset(args.dataset, args.datadir, None)
     loader  = datasets.get_loader(args, dataset)
 
     model = models.get_model(args, input_shape=dataset['input_shape'])
@@ -38,7 +38,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str, required=True)
-    parser.add_argument('--pkldir', type=str, required=True)
     parser.add_argument('--dataset', type=str, default='miniimagenet')
     parser.add_argument('--datadir', type=str, default='/data/miniimagenet')
     parser.add_argument('--batch-size', type=int, default=256)
@@ -49,7 +48,7 @@ if __name__ == "__main__":
     parser.add_argument('--N', type=int, default=5)
     parser.add_argument('--K', type=int, default=1)
     parser.add_argument('--Q', type=int, default=15)
-    parser.add_argument('--num-tasks', type=int, default=2000)
+    parser.add_argument('--num-tasks', type=int, default=1000)
 
     args = parser.parse_args()
 

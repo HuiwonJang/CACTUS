@@ -122,10 +122,12 @@ def get_augmentation(dataset):
 def get_dataset(dataset, datadir, pkldir):
     transform = get_augmentation(dataset)
     if dataset == 'miniimagenet':
-        train = PartitionDataset(os.path.join(datadir, 'train'), os.path.join(pkldir, 'train.pkl'), transform=transform)
-        #train = D.ImageFolder(os.path.join(datadir, 'train'), transform=transform)
-        val   = D.ImageFolder(os.path.join(datadir, 'val'),   transform=transform)
-        test  = D.ImageFolder(os.path.join(datadir, 'test'),  transform=transform)
+        if pkldir is not None:
+            train = PartitionDataset(os.path.join(datadir, 'train'), os.path.join(pkldir, 'train.pkl'), transform=transform)
+        else:
+            train = D.ImageFolder(os.path.join(datadir, 'train'), transform=transform)
+        val  = D.ImageFolder(os.path.join(datadir, 'val'),  transform=transform)
+        test = D.ImageFolder(os.path.join(datadir, 'test'), transform=transform)
         num_classes = (64, 16, 20)
         input_shape = (3, 84, 84)
     else:
@@ -135,13 +137,18 @@ def get_dataset(dataset, datadir, pkldir):
                 val=val,
                 test=test,
                 num_classes=num_classes,
-                input_shape=input_shape)
+                input_shape=input_shape,
+                partition=(pkldir is not None))
 
 
 def get_loader(args, dataset, splits=['train', 'val', 'test']):
     loader = {}
-    train_batch_sampler = PartitionFewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,#PartitionFewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,
-                                                      num_tasks=args.num_tasks // idist.get_world_size())
+    if dataset['partition']:
+        train_batch_sampler = PartitionFewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,
+                                                          num_tasks=args.num_tasks // idist.get_world_size())
+    else:
+        train_batch_sampler = FewShotTaskSampler(dataset['train'], N=args.N, K=args.K, Q=args.Q,
+                                                 num_tasks=args.num_tasks // idist.get_world_size())
     loader['train'] = torch.utils.data.DataLoader(dataset['train'],
                                                   batch_sampler=train_batch_sampler,
                                                   num_workers=args.num_workers,
